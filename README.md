@@ -1,2 +1,17 @@
 # command-carousel
 A quick app/script launcher
+
+This script lets you launch programs/scripts from a tool tip. 
+There are 3 hotkeys used that the user chooses
+- The Leader Key
+- - The key the script 'listens' for and that launches the selected program when released.
+- The Cycle Key
+- - The key that cycles through different menus (set up in the initial configuration gui in the menu tab)
+- The Selector Key
+- - The key that moves a pointer within a menu, when the leader key is released, whatever program is selected will launch.
+
+I've been using this in my main script and thought I'd like to modify it so that I could share it with the world. 
+My hotkeys are set to Ctrl (for the leader key), Right Click (for the cycle key) and Left click (for the selector key).
+I like this approach because as you use it, you build up muscle memory for where programs are.
+I went with multiple menus so that it wasn't just one long tool tip, and wouldn't have to press my selector key a million times to get to something.
+This is based on the Tooltip mouse menu from the showcase in the docs, but because its button based, you don't have to 'aim' the mouse for a program. 
