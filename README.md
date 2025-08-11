@@ -15,3 +15,5 @@ My hotkeys are set to Ctrl (for the leader key), Right Click (for the cycle key)
 I like this approach because as you use it, you build up muscle memory for where programs are.
 I went with multiple menus so that it wasn't just one long tool tip, and wouldn't have to press my selector key a million times to get to something.
 This is based on the Tooltip mouse menu from the showcase in the docs, but because its button based, you don't have to 'aim' the mouse for a program. 
+
+***I haven't done very robust testing and assume the user understands the keyword AHK uses for keys/buttons, feedback is welcome***
