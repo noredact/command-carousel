@@ -10,6 +10,8 @@ There are 3 hotkeys used that the user chooses
 - The Selector Key
 - - The key that moves a pointer within a menu, when the leader key is released, whatever program is selected will launch.
 
+ - Make sure you have the contents of the src folder for this to work properly.
+
 I've been using this in my main script and thought I'd like to modify it so that I could share it with the world. 
 My hotkeys are set to Ctrl (for the leader key), Right Click (for the cycle key) and Left click (for the selector key).
 I like this approach because as you use it, you build up muscle memory for where programs are.
