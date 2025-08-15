@@ -1,6 +1,6 @@
-#Requires AutoHotkey v2.0
+#Requires AutoHotkey v2+
 #SingleInstance
-#include %A_ScriptDir%\dependencies\ToolTipEx\ToolTipEx.ahk
+%%REPLACEVER%%#include %A_ScriptDir%\dependencies\ToolTipEx\ToolTipEx.ahk
 
 
 
@@ -89,7 +89,7 @@ class CycleSelector {
         make_the_menu:
         curOb := this.formatMenu(pressedCount, this.ttMenuItems)
         curMenu := curOb.ttm
-        ToolTipEx curMenu ,,5
+        %%REPLACE92%%
         this.triggerScript := curOb.triggerIndex
     }
 }
@@ -109,7 +109,7 @@ selector := CycleSelector()
     selector.ttMenuItems := menuItems
 
     selector.sectionMenu := selector.formatMenu(1, menuItems)
-    ToolTipEx selector.sectionMenu.ttm ,,5
+    %%REPLACE112%%
 
     selector.scriptIsCycling := 1
     selector.shiftedMenu := 1
@@ -136,7 +136,7 @@ selector := CycleSelector()
         return
 
     selector.scriptIsCycling := 0
-    ToolTipEx ,,5
+    %%REPLACE139%%
 
     if (local_triggerScript == 1)
         return
