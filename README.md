@@ -19,3 +19,8 @@ I went with multiple menus so that it wasn't just one long tool tip, and wouldn'
 This is based on the Tooltip mouse menu from the showcase in the docs, but because its button based, you don't have to 'aim' the mouse for a program. 
 
 ***I haven't done very robust testing and assume the user understands the keyword AHK uses for keys/buttons, feedback is welcome***
+
+
+UPDATE (08-15-2025)
+- ToolTipEx requires an alpha version of AHK
+- - Added a check to switch to the default tooltip if version is less than 2.1
