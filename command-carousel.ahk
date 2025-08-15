@@ -261,7 +261,7 @@ class CycleSelector {
         response := MsgBox("How do you want to specify the path?`n`nYes = Browse for specific file`nNo = Type simple command/path", "Select Path Method", "YesNo")
         newItemPath := ""
         if (response = "Yes") {
-            newItemPath := FileSelect("O", this.CySe_ScriptsDir, "Select executable or file", "All Files (*.*)|Executables (*.exe;*.bat;*.cmd)|*.*|*.exe;*.bat;*.cmd")
+            newItemPath := FileSelect(, this.CySe_ScriptsDir, "Select executable or file", "All Files (*.*)|Executables (*.exe;*.bat;*.cmd)|*.*|*.exe;*.bat;*.cmd")
             if (!newItemPath)
                 return
         } else {
@@ -300,7 +300,7 @@ class CycleSelector {
                 SplitPath(itemPath, , &itemDir)
                 startDir := itemDir
             }
-            selectedPath := FileSelect("O", startDir, "Select executable or file", "All Files (*.*)|Executables (*.exe;*.bat;*.cmd)|*.*|*.exe;*.bat;*.cmd")
+            selectedPath := FileSelect(, startDir, "Select executable or file", "All Files (*.*)|Executables (*.exe;*.bat;*.cmd)|*.*|*.exe;*.bat;*.cmd")
             if (!selectedPath)
                 return
             newItemPath := selectedPath
