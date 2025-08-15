@@ -1,4 +1,4 @@
-#Requires AutoHotkey v2.0
+#Requires AutoHotkey v2+
 #SingleInstance
 
 CycleSelector()
@@ -44,9 +44,12 @@ class CycleSelector {
         this.CySe_TemplatePath := A_ScriptDir "\src\template"
         this.CySe_ScriptPath := A_ScriptDir "\src\script.ahk"
         this.CySe_ScriptsDir := A_ScriptDir "\src\scripts"
+        this.oldVer := 0
         
-        if (A_AhkVersion > "2.1")
-            msgbox "Ver is higher"
+        
+        if VerCompare(A_AhkVersion, ">=2.1-alpha") = 0
+            this.oldVer := 1
+        
         
         if !DirExist(this.CySe_ScriptsDir) {
         DirCreate(this.CySe_ScriptsDir)
@@ -80,9 +83,9 @@ class CycleSelector {
         FileCopy(this.CySe_TemplatePath, this.CySe_ScriptPath, 1)
         
         IniWrite(this.CySe_ScriptPath, this.CySe_ConfigPath, "Script", "Path")
-        IniWrite(this.CySe_LeaderKey, this.CySe_ConfigPath, "Hotkeys", "LeaderKey")
-        IniWrite(this.CySe_CycleKey, this.CySe_ConfigPath, "Hotkeys", "CycleKey")
-        IniWrite(this.CySe_SelectorKey, this.CySe_ConfigPath, "Hotkeys", "SelectorKey")
+        IniWrite("Ctrl", this.CySe_ConfigPath, "Hotkeys", "LeaderKey")
+        IniWrite("RButton", this.CySe_ConfigPath, "Hotkeys", "CycleKey")
+        IniWrite("LButton", this.CySe_ConfigPath, "Hotkeys", "SelectorKey")
         IniWrite(this.CySe_SuspendKey, this.CySe_ConfigPath, "Hotkeys", "SuspendKey")
         IniWrite(1, this.CySe_ConfigPath, "Settings", "ShowConfigOnLaunch")
         IniWrite("Menu1", this.CySe_ConfigPath, "Menus", "1")
@@ -481,10 +484,16 @@ class CycleSelector {
             menuCount++
         }
         
+        this.getTTVar(this.oldVer)
+        
         ; Replace variables in the script template
         this.ReplaceFileVariables(this.CySe_ScriptPath, "REPLACEWITHLEADER", this.LeaderKeyEdit.Value)
         this.ReplaceFileVariables(this.CySe_ScriptPath, "REPLACEWITHCYCLE", this.CycleKeyEdit.Value)
         this.ReplaceFileVariables(this.CySe_ScriptPath, "REPLACEWITHSELECTOR", this.SelectorKeyEdit.Value)
+        this.ReplaceFileVariables(this.CySe_ScriptPath, "REPLACE92", this.tt92Var)
+        this.ReplaceFileVariables(this.CySe_ScriptPath, "REPLACE139", this.tt139Var)
+        this.ReplaceFileVariables(this.CySe_ScriptPath, "REPLACE112", this.tt112Var)
+        this.ReplaceFileVariables(this.CySe_ScriptPath, "REPLACEVER", this.verVar)
         
         this.SuspendKeyReplaceValue := ""
         if (this.SuspendKeyEdit.Value != "") {
@@ -511,6 +520,23 @@ class CycleSelector {
         MsgBox("Configuration saved successfully!`n`nThe script will now run with the updated settings.", "Configuration Saved", "OK Icon")
     }
 
+    getTTVar(versionBool) {
+        if versionBool = 1 {
+            this.tt92Var := "ToolTip curMenu ,,,5"
+            this.tt112Var := "ToolTip selector.sectionMenu.ttm ,,,5"
+            this.tt139Var := "ToolTip ,,,5"
+            this.verVar := ";"
+            return
+        }
+        else {
+        this.tt92Var := "ToolTipEx curMenu ,,5"
+        this.tt112Var := "ToolTipEx selector.sectionMenu.ttm ,,5"
+        this.tt139Var := "ToolTipEx ,,5"
+        this.verVar  := ""
+        return
+        }
+    }
+    
 
     ReplaceFileVariables(filePath, targetVar, newContent) {
         try {
