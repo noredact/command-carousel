@@ -1,4 +1,4 @@
-#Requires AutoHotkey v2.1-alpha.8
+#Requires AutoHotkey v2.0
 
 class RECT {
     L: i32, T: i32, R: i32, B: i32
