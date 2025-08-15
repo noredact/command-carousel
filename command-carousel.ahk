@@ -45,6 +45,9 @@ class CycleSelector {
         this.CySe_ScriptPath := A_ScriptDir "\src\script.ahk"
         this.CySe_ScriptsDir := A_ScriptDir "\src\scripts"
         
+        if (A_AhkVersion > "2.1")
+            msgbox "Ver is higher"
+        
         if !DirExist(this.CySe_ScriptsDir) {
         DirCreate(this.CySe_ScriptsDir)
         }
