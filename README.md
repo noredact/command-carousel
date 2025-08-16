@@ -24,6 +24,7 @@ This is based on the Tooltip mouse menu from the showcase in the docs, but becau
 UPDATE (08-15-2025)
 - ToolTipEx requires an alpha version of AHK
 - - Added a check to switch to the default tooltip if version is less than 2.1
+ 
 UPDATE (08-16-2025)
 - Added Icons
 - Added a "settings" menu so user can show the configuration gui again if they uncheck the box
