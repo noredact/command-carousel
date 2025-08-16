@@ -52,3 +52,5 @@ UPDATE (08-16-2025)
 - - this also demonstrates using ahk scripts in the scripts directory.
 - There was an issue with the suspend key not updating, now, the script will close the launcher if its running and delete the file before recreating it
 - Modified the generic "script.ahk" to a more descriptive file name.
+
+<noscript><a href="https://liberapay.com/noredact/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a></noscript>
