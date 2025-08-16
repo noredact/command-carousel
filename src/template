@@ -1,6 +1,8 @@
 #Requires AutoHotkey v2+
 #SingleInstance
 %%REPLACEVER%%#include %A_ScriptDir%\dependencies\ToolTipEx\ToolTipEx.ahk
+try
+    TraySetIcon A_ScriptDir "\media\icon.png"
 
 
 
@@ -24,6 +26,8 @@ class CycleSelector {
         this.configPath := A_ScriptDir "\config.ini"
         this.resetVars()
         this.loadMenus()
+        scriptPID := ProcessExist()
+        IniWrite(scriptPID, this.configPath, "Script", "PID")
     }
 
     resetVars() {

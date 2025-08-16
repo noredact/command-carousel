@@ -1,5 +1,7 @@
 #Requires AutoHotkey v2+
 #SingleInstance
+try 
+    TraySetIcon A_ScriptDir "\src\media\iconConfig.png",,"Freeze"
 
 CycleSelector()
 
@@ -42,7 +44,7 @@ class CycleSelector {
     Setup() {
         this.CySe_ConfigPath := A_ScriptDir "\src\config.ini"
         this.CySe_TemplatePath := A_ScriptDir "\src\template"
-        this.CySe_ScriptPath := A_ScriptDir "\src\script.ahk"
+        this.CySe_ScriptPath := A_ScriptDir "\src\ccarousel-launcher.ahk"
         this.CySe_ScriptsDir := A_ScriptDir "\src\scripts"
         this.oldVer := 0
         
@@ -67,6 +69,7 @@ class CycleSelector {
         "`nPress: " . this.CySe_CycleKey . " to cycle through menus. (When you reach the last menu, pressing this again will return to the first menu)`nPress: " . 
         this.CySe_SelectorKey . " to move down the list in the current menu`nRelease: " . 
         this.CySe_LeaderKey . " to run the selected program/script.`nRight Click the icon in the task bar to exit."
+        this.scriptProccess := IniRead(this.CySe_ConfigPath, "Script", "PID","")
         
         this.LoadMenus()
         this.ValidateShortcuts()
@@ -78,7 +81,7 @@ class CycleSelector {
     }
 
     FirstTimeSetup() {
-        MsgBox("No configuration file found. Assuming first launch. Please follow the prompts to set up Cycle Selector.", "Cycle Selector Setup", "OK")
+        MsgBox("No configuration file found. Assuming first launch. Writing .ini file and showing setup GUI.", "Command Carousel Setup", "OK")
         
         FileCopy(this.CySe_TemplatePath, this.CySe_ScriptPath, 1)
         
@@ -95,6 +98,15 @@ class CycleSelector {
         IniWrite("notepad.exe", this.CySe_ConfigPath, "Menu1", "Item1Path")
         IniWrite("Calculator", this.CySe_ConfigPath, "Menu1", "Item2Name")
         IniWrite("calc.exe", this.CySe_ConfigPath, "Menu1", "Item2Path")
+        IniWrite("Menu2", this.CySe_ConfigPath, "Menus", "2")
+        IniWrite("Settings", this.CySe_ConfigPath, "Menu2", "Name")
+        IniWrite("2", this.CySe_ConfigPath, "Menu2", "Order")
+        IniWrite("Show settings next launch", this.CySe_ConfigPath, "Menu2", "Item1Name")
+        IniWrite(this.CySe_ScriptsDir . "\settingsnextlaunch.ahk", this.CySe_ConfigPath, "Menu2", "Item1Path")
+        IniWrite("Show settings now", this.CySe_ConfigPath, "Menu2", "Item2Name")
+        IniWrite(this.CySe_ScriptsDir . "\settingsnow.ahk", this.CySe_ConfigPath, "Menu2", "Item2Path")
+        IniWrite("Open script parent folder", this.CySe_ConfigPath, "Menu2", "Item3Name")
+        IniWrite(A_ScriptDir, this.CySe_ConfigPath, "Menu2", "Item3Path")
     }
 
     ShowConfigGUI() {
@@ -443,10 +455,18 @@ class CycleSelector {
             return
         }
         
-        
-        
-        ; Clear existing config
+        ; Close script if it's running
+        if (this.scriptProccess != "") {
+            try {
+                ProcessClose this.scriptProccess
+            } catch as e {
+                MsgBox("Error closing the script process: " e.Message)
+                return
+            }
+        }
+        ; Clear existing config/script
         FileDelete(this.CySe_ConfigPath)
+        FileDelete(this.CySe_ScriptPath)
         
         ; overwrite formatted script
         FileCopy this.CySe_TemplatePath, this.CySe_ScriptPath, 1
@@ -500,13 +520,13 @@ class CycleSelector {
             this.SuspendKeyReplaceValue := "#SuspendExempt`n~" . this.CySe_SuspendKey . ":: {`n"
             this.SuspendKeyReplaceValue .= "
             (
+            try
+                TraySetIcon A_ScriptDir "\media\icon.png"
             Suspend
-            suspendMessage := "Script suspended``nHotkeys inactive"
-            if A_isSuspended
-                suspendMessage := "Script hotkeys active"
-            ToolTipEx(suspendMessage)
-            sleep 2000
-            ToolTipEx
+            if A_isSuspended {
+                try
+                    TraySetIcon A_ScriptDir "\media\iconPause.png",,"Freeze"
+            }
             }
             #SuspendExempt False
             )"
@@ -516,8 +536,8 @@ class CycleSelector {
         ; Create shortcuts for all full paths
         this.CreateAllShortcuts()
         this.MyGui.Destroy()
-        Run(this.CySe_ScriptPath)
         MsgBox("Configuration saved successfully!`n`nThe script will now run with the updated settings.", "Configuration Saved", "OK Icon")
+        Run(this.CySe_ScriptPath)
     }
 
     getTTVar(versionBool) {
