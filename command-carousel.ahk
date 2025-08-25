@@ -5,16 +5,46 @@ try
 
 CycleSelector()
 
+/*
+Todo: 
+make sure the makebackup works on saveandlaunch
+make sure the number of backups is saved properly
+*/
+
 ; --- Global Variables ---
 
 class CycleSelector {
+
+    ; Save handler
+    SaveConfigMenu() {
+        if this.configLoaded = 0
+            this.SaveConfigAs()
+        else 
+            this.SaveConfigCore(this.configLoaded)    
+        }
+    
     ; Save As... handler
     SaveConfigAs() {
         file := FileSelect("S", A_ScriptDir "\User Configs\config.ini", "Save Config As", "INI Files (*.ini)")
         if (!file)
             return
+        if FileExist(file) {
+            saveMsgBoxResult := MsgBox("The file already exists. Do you want to overwrite it?", "Confirm", "YesNoCancel")
+            if (saveMsgBoxResult = "No") {
+                file := 0
+                this.SaveConfigAs()
+            }
+            else if (saveMsgBoxResult = "Cancel")
+                return
+        }
+        if file = 0
+            return
         this.SaveConfigCore(file)
-        MsgBox("Configuration saved to: " file)
+        SplitPath file, &fileName
+        this.configLoaded := file
+        configText := "Viewing config: " . fileName
+        this.configDisplayText.Text := configText
+        ; MsgBox("Configuration saved to: " file)
     }
 
     ; Load... handler
@@ -23,11 +53,69 @@ class CycleSelector {
         if (!file)
             return
         FileCopy(file, this.CySe_ConfigPath, 1)
+        SplitPath file, &fileName
+        this.configLoaded := file
         this.LoadMenus()
         this.RefreshMenuList()
-        MsgBox("Configuration loaded from: " file)
+        this.configDisplayText.Value := "Viewing config: " . fileName
+        ; MsgBox("Configuration loaded from: " file)
     }
-
+    
+    ; Restore... handler
+    LoadBackupFromFile() {
+        file := FileSelect("1", A_ScriptDir "\src\tmp\", "Load backup", "INI Files (*.ini)")
+        if (!file)
+            return
+        FileCopy(file, this.CySe_ConfigPath, 1)
+        SplitPath file, &fileName
+        this.LoadMenus()
+        this.RefreshMenuList()
+        this.configLoaded := file
+        this.configDisplayText.Value := "Viewing config: " . fileName
+        ; MsgBox("Configuration restored from: " file)
+    }
+    
+    ; Restore default config handler
+    restoreDefaultIni() {
+        if (MsgBox("Any unsaved changes will be lost.`nThis will restore all hotkeys, menus, settings to default.`nAre you sure you want to continue?", "Confirm", "YesNo") = "No")
+            return
+        this.CySe_Menus := Map()
+        FileDelete(this.CySe_ConfigPath)
+        IniWrite(this.CySe_ScriptPath, this.CySe_ConfigPath, "Script", "Path")
+        IniWrite("Ctrl", this.CySe_ConfigPath, "Hotkeys", "LeaderKey")
+        IniWrite("RButton", this.CySe_ConfigPath, "Hotkeys", "CycleKey")
+        IniWrite("LButton", this.CySe_ConfigPath, "Hotkeys", "SelectorKey")
+        IniWrite(this.CySe_SuspendKey, this.CySe_ConfigPath, "Hotkeys", "SuspendKey")
+        IniWrite(1, this.CySe_ConfigPath, "Settings", "ShowConfigOnLaunch")
+        IniWrite(1, this.CySe_ConfigPath, "Settings", "ShowConfirmOnSave")
+        IniWrite("Menu1", this.CySe_ConfigPath, "Menus", "1")
+        IniWrite("Work", this.CySe_ConfigPath, "Menu1", "Name")
+        IniWrite("1", this.CySe_ConfigPath, "Menu1", "Order")
+        IniWrite("Notepad", this.CySe_ConfigPath, "Menu1", "Item1Name")
+        IniWrite("notepad.exe", this.CySe_ConfigPath, "Menu1", "Item1Path")
+        IniWrite("Calculator", this.CySe_ConfigPath, "Menu1", "Item2Name")
+        IniWrite("calc.exe", this.CySe_ConfigPath, "Menu1", "Item2Path")
+        IniWrite("Menu2", this.CySe_ConfigPath, "Menus", "2")
+        IniWrite("Settings", this.CySe_ConfigPath, "Menu2", "Name")
+        IniWrite("2", this.CySe_ConfigPath, "Menu2", "Order")
+        IniWrite("Show settings next launch", this.CySe_ConfigPath, "Menu2", "Item1Name")
+        IniWrite(this.CySe_ScriptsDir . "\settingsnextlaunch.ahk", this.CySe_ConfigPath, "Menu2", "Item1Path")
+        IniWrite("Show settings now", this.CySe_ConfigPath, "Menu2", "Item2Name")
+        IniWrite(this.CySe_ScriptsDir . "\settingsnow.ahk", this.CySe_ConfigPath, "Menu2", "Item2Path")
+        IniWrite("Open script parent folder", this.CySe_ConfigPath, "Menu2", "Item3Name")
+        IniWrite(A_ScriptDir, this.CySe_ConfigPath, "Menu2", "Item3Path")
+        this.LoadMenus()
+        this.RefreshMenuList()
+        this.ItemLV.Delete()
+        this.SetInitialHotkeyValues()
+        this.ShowConfirmationCB.Value := 1
+        this.ShowGuiCB.Value := 1
+        this.BackupCountEdit.Value := 10
+        this.configDisplayText.Value := "Default config restored."
+        this.configLoaded := 0
+        }
+    
+    
     ; Update backup count in ini
     UpdateBackupCount() {
         val := this.BackupCountEdit.Value
@@ -51,7 +139,18 @@ class CycleSelector {
             files.Push(A_LoopFileFullPath)
         if (files.Length > backupCount) {
             ; Sort by name (timestamp)
-            files.Sort()
+            n := files.Length
+            loop n - 1 {
+                i := A_Index
+                loop n - i {
+                    j := A_Index
+                    if (StrCompare(files[j], files[j+1]) > 0) {
+                        temp := files[j]
+                        files[j] := files[j+1]
+                        files[j+1] := temp
+                    }
+                }
+            }
             for i, f in files {
                 if (i <= files.Length - backupCount)
                     FileDelete(f)
@@ -66,6 +165,7 @@ class CycleSelector {
         this.SaveConfig() ; Save to main config
         FileCopy(this.CySe_ConfigPath, path, 1)
     }
+    
     ; Helper to join array elements with a delimiter (for confirmation messages)
     StrJoin(delim, arr*) {
         out := ""
@@ -117,7 +217,7 @@ class CycleSelector {
         this.CySe_ScriptPath := A_ScriptDir "\src\ccarousel-launcher.ahk"
         this.CySe_ScriptsDir := A_ScriptDir "\src\scripts"
         this.oldVer := 0
-        
+        this.configLoaded := 0
         
         if VerCompare(A_AhkVersion, ">=2.1-alpha") = 0
             this.oldVer := 1
@@ -136,6 +236,7 @@ class CycleSelector {
         this.CySe_SuspendKey := IniRead(this.CySe_ConfigPath, "Hotkeys", "SuspendKey", "")
         this.CySe_ShowConfigOnLaunch := IniRead(this.CySe_ConfigPath, "Settings", "ShowConfigOnLaunch", 1)
         this.CySe_ShowConfirmOnSave := IniRead(this.CySe_ConfigPath, "Settings", "ShowConfirmOnSave", 1)
+        this.BackupCount := IniRead(this.CySe_ConfigPath, "Settings", "BackupCount", 10)
         this.instructionMessage := "While pressing and holding: " . this.CySe_LeaderKey . 
         "`nPress: " . this.CySe_CycleKey . " to cycle through menus. (When you reach the last menu, pressing this again will return to the first menu)`nPress: " . 
         this.CySe_SelectorKey . " to move down the list in the current menu`nRelease: " . 
@@ -163,6 +264,7 @@ class CycleSelector {
         IniWrite(this.CySe_SuspendKey, this.CySe_ConfigPath, "Hotkeys", "SuspendKey")
         IniWrite(1, this.CySe_ConfigPath, "Settings", "ShowConfigOnLaunch")
         IniWrite(1, this.CySe_ConfigPath, "Settings", "ShowConfirmOnSave")
+        IniWrite(10, this.CySe_ConfigPath, "Settings", "backupCount")
         IniWrite("Menu1", this.CySe_ConfigPath, "Menus", "1")
         IniWrite("Work", this.CySe_ConfigPath, "Menu1", "Name")
         IniWrite("1", this.CySe_ConfigPath, "Menu1", "Order")
@@ -185,15 +287,20 @@ class CycleSelector {
         this.MyGui := Gui()
         ; --- File MenuBar ---
         fileMenu := Menu()
+        fileMenu.Add("Save", (*) => this.SaveConfigMenu())
         fileMenu.Add("Save As...", (*) => this.SaveConfigAs())
         fileMenu.Add("Load...", (*) => this.LoadConfigFromFile())
+        fileMenu.Add("Restore backup...", (*) => this.LoadBackupFromFile())
+        fileMenu.Add("Restore default", (*) => this.restoreDefaultIni())
         fileMenu.Add()
         fileMenu.Add("Exit", (*) => this.MyGui.Destroy())
         myMenuBar := MenuBar()
         myMenuBar.Add("File", fileMenu)
         this.MyGui.MenuBar := myMenuBar
+        this.configDisplayText := this.MyGui.Add("Text", "xp150 ym+5", "No config loaded. Using last saved settings")
+        
         ; --- Tabs and Controls ---
-        this.MyTab := this.MyGui.AddTab( "w600 h400",["Hotkeys", "Menus", "Settings"])
+        this.MyTab := this.MyGui.AddTab( "w600 h400 xm ym",["Hotkeys", "Menus", "Settings"])
         this.MyTab.UseTab("Hotkeys")
         this.MyGui.Add("Text", "x360 y45", "Recommended hotkeys for mouse users:`nLeader Key: Ctrl`nCycle Key: RButton (Right click)`nSelector Key: LButton (Left Click)")
         this.MyGui.Add("Text", "x360 y125", "Recommended hotkeys for keyboard users:`nLeader Key: Ctrl`nCycle Key: , (Comma)`nSelector Key: . (Period)")
@@ -265,33 +372,15 @@ class CycleSelector {
     this.MyGui.Add("Text", "x90 yp+2", "Number of backups to keep (in src\\tmp)")
     this.BackupCountEdit.OnEvent("Change", (*) => this.UpdateBackupCount())
     this.MyTab.UseTab(0)
-    SaveButton := this.MyGui.Add("Button", "x20 y410 w80", "Save")
-    SaveButton.OnEvent("Click", (*) => this.SaveConfig())
+    SaveLaunchButton := this.MyGui.Add("Button", "x20 y410", "Launch")
+    SaveLaunchButton.OnEvent("Click", (*) => this.SaveLaunchConfig())
     CloseButton := this.MyGui.Add("Button", "x110 y410 w80", "Close")
     CloseButton.OnEvent("Click", (*) => this.MyGui.Destroy())
     this.MyGui.OnEvent("Close", (*) => this.MyGui.Destroy())
     this.MenuLV.Modify(1, "Select Focus")
     this.MenuLV_SelectionChange()
     this.MyGui.Show()
-    ; Save As... handler
-    SaveConfigAs() {
-        file := FileSelect("S", A_ScriptDir "\User Configs\config.ini", "Save Config As", "INI Files (*.ini)")
-        if (!file)
-            return
-        this.SaveConfigCore(file)
-        MsgBox("Configuration saved to: " file)
-    }
 
-    ; Load... handler
-    LoadConfigFromFile() {
-        file := FileSelect("1", A_ScriptDir "\User Configs\", "Load Config", "INI Files (*.ini)")
-        if (!file)
-            return
-        FileCopy(file, this.CySe_ConfigPath, 1)
-        this.LoadMenus()
-        this.RefreshMenuList()
-        MsgBox("Configuration loaded from: " file)
-    }
 
     ; Update backup count in ini
     UpdateBackupCount() {
@@ -301,38 +390,15 @@ class CycleSelector {
         IniWrite(val, this.CySe_ConfigPath, "Settings", "BackupCount")
     }
 
-    ; Make a backup in src/tmp, keep only N most recent
-    MakeBackup() {
-        backupDir := A_ScriptDir "\src\tmp"
-        if !DirExist(backupDir)
-            DirCreate(backupDir)
-        timestamp := FormatTime(A_Now, "yyyyMMdd-HHmmss")
-        backupFile := backupDir "\config-" timestamp ".ini"
-        FileCopy(this.CySe_ConfigPath, backupFile, 1)
-        ; Retention logic
-        backupCount := IniRead(this.CySe_ConfigPath, "Settings", "BackupCount", 10)
-        files := []
-        Loop Files, backupDir "\config-*.ini"
-            files.Push(A_LoopFileFullPath)
-        if (files.Length > backupCount) {
-            ; Sort by name (timestamp)
-            files.Sort()
-            for i, f in files {
-                if (i <= files.Length - backupCount)
-                    FileDelete(f)
-            }
-        }
-    }
-
-    ; Core save logic, used by SaveConfig and SaveConfigAs
-    SaveConfigCore(path) {
-        ; Save current config to given path
-        ; (copy of SaveConfig, but writes to 'path')
-        ; ...existing code for validation and writing...
-        ; For brevity, just copy current config file
-        this.SaveConfig() ; Save to main config
-        FileCopy(this.CySe_ConfigPath, path, 1)
-    }
+    ; ; Core save logic, used by SaveConfig and SaveConfigAs
+    ; SaveConfigCore(path) {
+    ;     ; Save current config to given path
+    ;     ; (copy of SaveConfig, but writes to 'path')
+    ;     ; ...existing code for validation and writing...
+    ;     ; For brevity, just copy current config file
+    ;     this.SaveConfig() ; Save to main config
+    ;     FileCopy(this.CySe_ConfigPath, path, 1)
+    ; }
     }
     
     showConfirmChange() {
@@ -400,7 +466,7 @@ class CycleSelector {
     }
 
     RemoveMenu(*) {
-            IniWrite(this.BackupCountEdit.Value, this.CySe_ConfigPath, "Settings", "BackupCount")
+            ; IniWrite(this.BackupCountEdit.Value, this.CySe_ConfigPath, "Settings", "BackupCount")
         selectedRow := this.MenuLV.GetNext()
         if (!selectedRow) {
             MsgBox("Please select a menu to remove.")
@@ -847,6 +913,57 @@ class CycleSelector {
             MsgBox("Hotkeys must be unique. Please change them before saving.")
             return
         }
+        ; Save Hotkeys
+        
+        IniWrite(this.LeaderKeyEdit.Value, this.CySe_ConfigPath, "Hotkeys", "LeaderKey")
+        IniWrite(this.CycleKeyEdit.Value, this.CySe_ConfigPath, "Hotkeys", "CycleKey")
+        IniWrite(this.SelectorKeyEdit.Value, this.CySe_ConfigPath, "Hotkeys", "SelectorKey")
+        IniWrite(this.SuspendKeyEdit.Value, this.CySe_ConfigPath, "Hotkeys", "SuspendKey")
+        ; Save Settings
+        IniWrite(this.ShowGuiCB.Value, this.CySe_ConfigPath, "Settings", "ShowConfigOnLaunch")
+        IniWrite(this.ShowConfirmationCB.Value, this.CySe_ConfigPath, "Settings", "ShowConfirmOnSave")
+        ; Save Script Path
+        IniWrite(this.CySe_ScriptPath, this.CySe_ConfigPath, "Script", "Path")
+        ; Sort menus by order before saving
+        menuArray := []
+        for menuName, menuData in this.CySe_Menus {
+            menuArray.Push({Name: menuName, Order: menuData["Order"], Data: menuData})
+        }
+        this.SortMenuArray(menuArray)
+        ; Save Menus in correct order
+        menuCount := 1
+        for menu in menuArray {
+            menuId := "Menu" menuCount
+            IniWrite(menuId, this.CySe_ConfigPath, "Menus", menuCount)
+            IniWrite(menu.Name, this.CySe_ConfigPath, menuId, "Name")
+            IniWrite(menu.Order, this.CySe_ConfigPath, menuId, "Order")
+            
+            itemCount := 1
+            for _, item in menu.Data["Items"] {
+                IniWrite(item["Name"], this.CySe_ConfigPath, menuId, "Item" itemCount "Name")
+                IniWrite(item["Path"], this.CySe_ConfigPath, menuId, "Item" itemCount "Path")
+                itemCount++
+            }
+            menuCount++
+        }
+        this.ReplaceFileVariables(this.CySe_ScriptPath, "REPLACEWITHSUSPEND", this.SuspendKeyReplaceValue)         
+}
+
+
+    SaveLaunchConfig(*) {
+        ; make sure no blank hotkeys
+        if (!this.LeaderKeyEdit.Value || !this.CycleKeyEdit.Value || !this.SelectorKeyEdit.Value) {
+            MsgBox("Please set all hotkeys before saving.")
+            return
+        }
+        
+        ; make sure no duplicate hotkeys
+        if (this.LeaderKeyEdit.Value = this.CycleKeyEdit.Value || 
+            this.LeaderKeyEdit.Value = this.SelectorKeyEdit.Value || 
+            this.CycleKeyEdit.Value = this.SelectorKeyEdit.Value) {
+            MsgBox("Hotkeys must be unique. Please change them before saving.")
+            return
+        }
         
         ; Close script if it's running
         if (this.scriptProccess != "") {
@@ -873,6 +990,7 @@ class CycleSelector {
         ; Save Settings
         IniWrite(this.ShowGuiCB.Value, this.CySe_ConfigPath, "Settings", "ShowConfigOnLaunch")
         IniWrite(this.ShowConfirmationCB.Value, this.CySe_ConfigPath, "Settings", "ShowConfirmOnSave")
+        IniWrite(this.BackupCountEdit.Value, this.CySe_ConfigPath, "Settings", "BackupCount")
         ; Save Script Path
         IniWrite(this.CySe_ScriptPath, this.CySe_ConfigPath, "Script", "Path")
         ; Sort menus by order before saving
@@ -930,6 +1048,7 @@ class CycleSelector {
         ; Create shortcuts for all full paths
         this.CreateAllShortcuts()
         this.MyGui.Destroy()
+        this.MakeBackup()
         if this.CySe_ShowConfirmOnSave
             MsgBox("Configuration saved successfully!`n`nThe script will now run with the updated settings.", "Configuration Saved", "OK Icon")
         Run(this.CySe_ScriptPath)
