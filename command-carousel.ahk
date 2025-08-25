@@ -8,6 +8,64 @@ CycleSelector()
 ; --- Global Variables ---
 
 class CycleSelector {
+    ; Save As... handler
+    SaveConfigAs() {
+        file := FileSelect("S", A_ScriptDir "\User Configs\config.ini", "Save Config As", "INI Files (*.ini)")
+        if (!file)
+            return
+        this.SaveConfigCore(file)
+        MsgBox("Configuration saved to: " file)
+    }
+
+    ; Load... handler
+    LoadConfigFromFile() {
+        file := FileSelect("1", A_ScriptDir "\User Configs\", "Load Config", "INI Files (*.ini)")
+        if (!file)
+            return
+        FileCopy(file, this.CySe_ConfigPath, 1)
+        this.LoadMenus()
+        this.RefreshMenuList()
+        MsgBox("Configuration loaded from: " file)
+    }
+
+    ; Update backup count in ini
+    UpdateBackupCount() {
+        val := this.BackupCountEdit.Value
+        if (val = "" || val < 1)
+            val := 1
+        IniWrite(val, this.CySe_ConfigPath, "Settings", "BackupCount")
+    }
+
+    ; Make a backup in src/tmp, keep only N most recent
+    MakeBackup() {
+        backupDir := A_ScriptDir "\src\tmp"
+        if !DirExist(backupDir)
+            DirCreate(backupDir)
+        timestamp := FormatTime(A_Now, "yyyyMMdd-HHmmss")
+        backupFile := backupDir "\config-" timestamp ".ini"
+        FileCopy(this.CySe_ConfigPath, backupFile, 1)
+        ; Retention logic
+        backupCount := IniRead(this.CySe_ConfigPath, "Settings", "BackupCount", 10)
+        files := []
+        Loop Files, backupDir "\config-*.ini"
+            files.Push(A_LoopFileFullPath)
+        if (files.Length > backupCount) {
+            ; Sort by name (timestamp)
+            files.Sort()
+            for i, f in files {
+                if (i <= files.Length - backupCount)
+                    FileDelete(f)
+            }
+        }
+    }
+
+    ; Core save logic, used by SaveConfig and SaveConfigAs
+    SaveConfigCore(path) {
+        ; Save current config to given path
+        ; (copy of SaveConfig, but writes to 'path')
+        this.SaveConfig() ; Save to main config
+        FileCopy(this.CySe_ConfigPath, path, 1)
+    }
     ; Helper to join array elements with a delimiter (for confirmation messages)
     StrJoin(delim, arr*) {
         out := ""
@@ -125,6 +183,16 @@ class CycleSelector {
 
     ShowConfigGUI() {
         this.MyGui := Gui()
+        ; --- File MenuBar ---
+        fileMenu := Menu()
+        fileMenu.Add("Save As...", (*) => this.SaveConfigAs())
+        fileMenu.Add("Load...", (*) => this.LoadConfigFromFile())
+        fileMenu.Add()
+        fileMenu.Add("Exit", (*) => this.MyGui.Destroy())
+        myMenuBar := MenuBar()
+        myMenuBar.Add("File", fileMenu)
+        this.MyGui.MenuBar := myMenuBar
+        ; --- Tabs and Controls ---
         this.MyTab := this.MyGui.AddTab( "w600 h400",["Hotkeys", "Menus", "Settings"])
         this.MyTab.UseTab("Hotkeys")
         this.MyGui.Add("Text", "x360 y45", "Recommended hotkeys for mouse users:`nLeader Key: Ctrl`nCycle Key: RButton (Right click)`nSelector Key: LButton (Left Click)")
@@ -185,21 +253,86 @@ class CycleSelector {
         EditItemButton.OnEvent("Click", (*) => this.EditItem())
         RemoveItemButton := this.MyGui.Add("Button", "x460 y310 w80", "Remove Item")
         RemoveItemButton.OnEvent("Click", (*) => this.RemoveItem())
-        this.MyTab.UseTab("Settings")
-        this.ShowGuiCB := this.MyGui.Add("Checkbox", "x20 y50 vShowConfigOnLaunch", "Show this configuration window on launch")
-        this.ShowGuiCB.Value := this.CySe_ShowConfigOnLaunch
-        this.ShowConfirmationCB := this.MyGui.Add("Checkbox", "x20 y+50 vShowConfirmOnSave", "Show confirmation message after save")
-        this.ShowConfirmationCB.Value := this.CySe_ShowConfirmOnSave
-        this.ShowConfirmationCB.OnEvent("Click", (*) => this.showConfirmChange())
-        this.MyTab.UseTab(0)
-        SaveButton := this.MyGui.Add("Button", "x20 y410 w80", "Save")
-        SaveButton.OnEvent("Click", (*) => this.SaveConfig())
-        CloseButton := this.MyGui.Add("Button", "x110 y410 w80", "Close")
-        CloseButton.OnEvent("Click", (*) => this.MyGui.Destroy())
-        this.MyGui.OnEvent("Close", (*) => this.MyGui.Destroy())
-        this.MenuLV.Modify(1, "Select Focus")
-        this.MenuLV_SelectionChange()
-        this.MyGui.Show()
+    this.MyTab.UseTab("Settings")
+    this.ShowGuiCB := this.MyGui.Add("Checkbox", "x20 y50 vShowConfigOnLaunch", "Show this configuration window on launch")
+    this.ShowGuiCB.Value := this.CySe_ShowConfigOnLaunch
+    this.ShowConfirmationCB := this.MyGui.Add("Checkbox", "x20 y+50 vShowConfirmOnSave", "Show confirmation message after save")
+    this.ShowConfirmationCB.Value := this.CySe_ShowConfirmOnSave
+    this.ShowConfirmationCB.OnEvent("Click", (*) => this.showConfirmChange())
+    ; --- Backup Count Setting ---
+    backupCount := IniRead(this.CySe_ConfigPath, "Settings", "BackupCount", 10)
+    this.BackupCountEdit := this.MyGui.Add("Edit", "x20 y+50 w60 vBackupCountEdit Number", backupCount)
+    this.MyGui.Add("Text", "x90 yp+2", "Number of backups to keep (in src\\tmp)")
+    this.BackupCountEdit.OnEvent("Change", (*) => this.UpdateBackupCount())
+    this.MyTab.UseTab(0)
+    SaveButton := this.MyGui.Add("Button", "x20 y410 w80", "Save")
+    SaveButton.OnEvent("Click", (*) => this.SaveConfig())
+    CloseButton := this.MyGui.Add("Button", "x110 y410 w80", "Close")
+    CloseButton.OnEvent("Click", (*) => this.MyGui.Destroy())
+    this.MyGui.OnEvent("Close", (*) => this.MyGui.Destroy())
+    this.MenuLV.Modify(1, "Select Focus")
+    this.MenuLV_SelectionChange()
+    this.MyGui.Show()
+    ; Save As... handler
+    SaveConfigAs() {
+        file := FileSelect("S", A_ScriptDir "\User Configs\config.ini", "Save Config As", "INI Files (*.ini)")
+        if (!file)
+            return
+        this.SaveConfigCore(file)
+        MsgBox("Configuration saved to: " file)
+    }
+
+    ; Load... handler
+    LoadConfigFromFile() {
+        file := FileSelect("1", A_ScriptDir "\User Configs\", "Load Config", "INI Files (*.ini)")
+        if (!file)
+            return
+        FileCopy(file, this.CySe_ConfigPath, 1)
+        this.LoadMenus()
+        this.RefreshMenuList()
+        MsgBox("Configuration loaded from: " file)
+    }
+
+    ; Update backup count in ini
+    UpdateBackupCount() {
+        val := this.BackupCountEdit.Value
+        if (val = "" || val < 1)
+            val := 1
+        IniWrite(val, this.CySe_ConfigPath, "Settings", "BackupCount")
+    }
+
+    ; Make a backup in src/tmp, keep only N most recent
+    MakeBackup() {
+        backupDir := A_ScriptDir "\src\tmp"
+        if !DirExist(backupDir)
+            DirCreate(backupDir)
+        timestamp := FormatTime(A_Now, "yyyyMMdd-HHmmss")
+        backupFile := backupDir "\config-" timestamp ".ini"
+        FileCopy(this.CySe_ConfigPath, backupFile, 1)
+        ; Retention logic
+        backupCount := IniRead(this.CySe_ConfigPath, "Settings", "BackupCount", 10)
+        files := []
+        Loop Files, backupDir "\config-*.ini"
+            files.Push(A_LoopFileFullPath)
+        if (files.Length > backupCount) {
+            ; Sort by name (timestamp)
+            files.Sort()
+            for i, f in files {
+                if (i <= files.Length - backupCount)
+                    FileDelete(f)
+            }
+        }
+    }
+
+    ; Core save logic, used by SaveConfig and SaveConfigAs
+    SaveConfigCore(path) {
+        ; Save current config to given path
+        ; (copy of SaveConfig, but writes to 'path')
+        ; ...existing code for validation and writing...
+        ; For brevity, just copy current config file
+        this.SaveConfig() ; Save to main config
+        FileCopy(this.CySe_ConfigPath, path, 1)
+    }
     }
     
     showConfirmChange() {
@@ -226,7 +359,8 @@ class CycleSelector {
         if (result.Result != "OK" || !result.Value)
             return
         newMenuName := result.Value
-        if this.CySe_Menus.Has(newMenuName) {
+        SaveConfig(*) {
+            this.MakeBackup()
             MsgBox("A menu with that name already exists!")
             return
         }
@@ -266,6 +400,7 @@ class CycleSelector {
     }
 
     RemoveMenu(*) {
+            IniWrite(this.BackupCountEdit.Value, this.CySe_ConfigPath, "Settings", "BackupCount")
         selectedRow := this.MenuLV.GetNext()
         if (!selectedRow) {
             MsgBox("Please select a menu to remove.")
