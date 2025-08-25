@@ -8,6 +8,17 @@ CycleSelector()
 ; --- Global Variables ---
 
 class CycleSelector {
+    ; Helper to join array elements with a delimiter (for confirmation messages)
+    StrJoin(delim, arr*) {
+        out := ""
+        for i, v in arr[1] {
+            if (i > 1)
+                out .= delim
+            out .= v
+        }
+        return out
+    }
+
     ; Properties
     CySe_Menus := Map()
     CySe_LeaderKey := ""
@@ -19,6 +30,7 @@ class CycleSelector {
     CySe_TemplatePath := ""
     CySe_ScriptPath := ""
     CySe_ShowConfigOnLaunch := ""
+    CySe_ShowConfirmOnSave := ""
     SuspendKeyReplaceValue := ""
 
     ; GUI controls
@@ -65,6 +77,7 @@ class CycleSelector {
         this.CySe_SelectorKey := IniRead(this.CySe_ConfigPath, "Hotkeys", "SelectorKey", "")
         this.CySe_SuspendKey := IniRead(this.CySe_ConfigPath, "Hotkeys", "SuspendKey", "")
         this.CySe_ShowConfigOnLaunch := IniRead(this.CySe_ConfigPath, "Settings", "ShowConfigOnLaunch", 1)
+        this.CySe_ShowConfirmOnSave := IniRead(this.CySe_ConfigPath, "Settings", "ShowConfirmOnSave", 1)
         this.instructionMessage := "While pressing and holding: " . this.CySe_LeaderKey . 
         "`nPress: " . this.CySe_CycleKey . " to cycle through menus. (When you reach the last menu, pressing this again will return to the first menu)`nPress: " . 
         this.CySe_SelectorKey . " to move down the list in the current menu`nRelease: " . 
@@ -91,6 +104,7 @@ class CycleSelector {
         IniWrite("LButton", this.CySe_ConfigPath, "Hotkeys", "SelectorKey")
         IniWrite(this.CySe_SuspendKey, this.CySe_ConfigPath, "Hotkeys", "SuspendKey")
         IniWrite(1, this.CySe_ConfigPath, "Settings", "ShowConfigOnLaunch")
+        IniWrite(1, this.CySe_ConfigPath, "Settings", "ShowConfirmOnSave")
         IniWrite("Menu1", this.CySe_ConfigPath, "Menus", "1")
         IniWrite("Work", this.CySe_ConfigPath, "Menu1", "Name")
         IniWrite("1", this.CySe_ConfigPath, "Menu1", "Order")
@@ -150,6 +164,8 @@ class CycleSelector {
         MoveItemUpBtn.OnEvent("Click", (*) => this.MoveItemUp())
         MoveItemDownBtn := this.MyGui.Add("Button", "x375 y280 w80", "Move Down")
         MoveItemDownBtn.OnEvent("Click", (*) => this.MoveItemDown())
+        MoveItemMenuBtn := this.MyGui.Add("Button", "x460 y280 w88", "Move to Menu...")
+        MoveItemMenuBtn.OnEvent("Click", (*) => this.MoveItemMenu())
         this.RefreshMenuList()
         this.MenuLV.ModifyCol(1, "50")
         this.MenuLV.ModifyCol(2, "150")
@@ -172,15 +188,25 @@ class CycleSelector {
         this.MyTab.UseTab("Settings")
         this.ShowGuiCB := this.MyGui.Add("Checkbox", "x20 y50 vShowConfigOnLaunch", "Show this configuration window on launch")
         this.ShowGuiCB.Value := this.CySe_ShowConfigOnLaunch
+        this.ShowConfirmationCB := this.MyGui.Add("Checkbox", "x20 y+50 vShowConfirmOnSave", "Show confirmation message after save")
+        this.ShowConfirmationCB.Value := this.CySe_ShowConfirmOnSave
+        this.ShowConfirmationCB.OnEvent("Click", (*) => this.showConfirmChange())
         this.MyTab.UseTab(0)
         SaveButton := this.MyGui.Add("Button", "x20 y410 w80", "Save")
         SaveButton.OnEvent("Click", (*) => this.SaveConfig())
         CloseButton := this.MyGui.Add("Button", "x110 y410 w80", "Close")
         CloseButton.OnEvent("Click", (*) => this.MyGui.Destroy())
         this.MyGui.OnEvent("Close", (*) => this.MyGui.Destroy())
+        this.MenuLV.Modify(1, "Select Focus")
+        this.MenuLV_SelectionChange()
         this.MyGui.Show()
     }
-
+    
+    showConfirmChange() {
+            IniWrite(this.ShowConfirmationCB.Value, this.CySe_ConfigPath, "Settings", "ShowConfirmOnSave")
+            this.CySe_ShowConfirmOnSave := this.ShowConfirmationCB.Value
+        }
+    
     ; All other functions become methods, e.g.:
     MenuLV_SelectionChange() {
         this.ItemLV.Delete()
@@ -334,16 +360,42 @@ class CycleSelector {
 
     RemoveItem(*) {
         selectedMenuRow := this.MenuLV.GetNext()
-        selectedItemRow := this.ItemLV.GetNext()
-        if (!selectedMenuRow || !selectedItemRow) {
-            MsgBox("Please select a menu and an item to remove.")
+        ; Get all selected item rows
+        selectedItemRows := []
+        row := 0
+        while (row := this.ItemLV.GetNext(row)) {
+            selectedItemRows.Push(row)
+        }
+        if (!selectedMenuRow || selectedItemRows.Length = 0) {
+            MsgBox("Please select a menu and at least one item to remove.")
             return
         }
         menuName := this.MenuLV.GetText(selectedMenuRow, 2)
-        itemName := this.ItemLV.GetText(selectedItemRow, 2)
-        if (MsgBox("Are you sure you want to delete the item '" itemName "'?", "Confirm", "YesNo") = "Yes") {
-            this.RemoveShortcut(itemName)
-            this.CySe_Menus[menuName]["Items"].RemoveAt(selectedItemRow)
+        ; Gather item names for confirmation
+        itemNames := []
+        for _, idx in selectedItemRows {
+            itemNames.Push(this.ItemLV.GetText(idx, 2))
+        }
+    msg := "Are you sure you want to delete the following " itemNames.Length " item(s)?`n`n- " . this.StrJoin("`n- ", itemNames)
+        if (MsgBox(msg, "Confirm", "YesNo") = "Yes") {
+            ; Sort descending so RemoveAt doesn't shift indices
+            n := selectedItemRows.Length
+            loop n - 1 {
+                i := A_Index
+                loop n - i {
+                    j := A_Index
+                    if (selectedItemRows[j] < selectedItemRows[j+1]) {
+                        temp := selectedItemRows[j]
+                        selectedItemRows[j] := selectedItemRows[j+1]
+                        selectedItemRows[j+1] := temp
+                    }
+                }
+            }
+            ; Remove shortcuts and items
+            for _, idx in selectedItemRows {
+                this.RemoveShortcut(this.CySe_Menus[menuName]["Items"][idx]["Name"])
+                this.CySe_Menus[menuName]["Items"].RemoveAt(idx)
+            }
             this.RefreshItemList(menuName)
             this.RefreshMenuList()
         }
@@ -406,39 +458,245 @@ class CycleSelector {
 
     MoveItemUp(*) {
         selectedMenuRow := this.MenuLV.GetNext()
-        selectedItemRow := this.ItemLV.GetNext()
-        if (!selectedMenuRow || !selectedItemRow || selectedItemRow <= 1)
+        ; Get all selected item rows
+        selectedItemRows := []
+        row := 0
+        while (row := this.ItemLV.GetNext(row)) {
+            selectedItemRows.Push(row)
+        }
+        if (!selectedMenuRow || selectedItemRows.Length = 0)
             return
+        ; Sort ascending so we move topmost first
+        n := selectedItemRows.Length
+        loop n - 1 {
+            i := A_Index
+            loop n - i {
+                j := A_Index
+                if (selectedItemRows[j] > selectedItemRows[j+1]) {
+                    temp := selectedItemRows[j]
+                    selectedItemRows[j] := selectedItemRows[j+1]
+                    selectedItemRows[j+1] := temp
+                }
+            }
+        }
         menuName := this.MenuLV.GetText(selectedMenuRow, 2)
         items := this.CySe_Menus[menuName]["Items"]
-        temp := items[selectedItemRow].Clone()
-        items[selectedItemRow] := items[selectedItemRow - 1].Clone()
-        items[selectedItemRow - 1] := temp
+        ; Only move if all selected rows are above 1
+        for _, idx in selectedItemRows {
+            if (idx <= 1)
+                return
+        }
+        ; Move each selected item up, preserving relative order
+        for _, idx in selectedItemRows {
+            temp := items[idx].Clone()
+            items[idx] := items[idx - 1].Clone()
+            items[idx - 1] := temp
+        }
         this.RefreshItemList(menuName)
-        this.ItemLV.Modify(selectedItemRow - 1, "Select Focus")
+        ; Reselect moved items
+        for _, idx in selectedItemRows {
+            this.ItemLV.Modify(idx - 1, "Select")
+        }
+        this.ItemLV.Modify(selectedItemRows[1] - 1, "Focus")
     }
 
     MoveItemDown(*) {
         selectedMenuRow := this.MenuLV.GetNext()
-        selectedItemRow := this.ItemLV.GetNext()
-        if (!selectedMenuRow || !selectedItemRow || selectedItemRow >= this.ItemLV.GetCount())
+        ; Get all selected item rows
+        selectedItemRows := []
+        row := 0
+        while (row := this.ItemLV.GetNext(row)) {
+            selectedItemRows.Push(row)
+        }
+        if (!selectedMenuRow || selectedItemRows.Length = 0)
             return
+        ; Sort descending so we move bottommost first
+        n := selectedItemRows.Length
+        loop n - 1 {
+            i := A_Index
+            loop n - i {
+                j := A_Index
+                if (selectedItemRows[j] < selectedItemRows[j+1]) {
+                    temp := selectedItemRows[j]
+                    selectedItemRows[j] := selectedItemRows[j+1]
+                    selectedItemRows[j+1] := temp
+                }
+            }
+        }
         menuName := this.MenuLV.GetText(selectedMenuRow, 2)
         items := this.CySe_Menus[menuName]["Items"]
-        temp := items[selectedItemRow].Clone()
-        items[selectedItemRow] := items[selectedItemRow + 1].Clone()
-        items[selectedItemRow + 1] := temp
+        maxIdx := this.ItemLV.GetCount()
+        ; Only move if all selected rows are below max
+        for _, idx in selectedItemRows {
+            if (idx >= maxIdx)
+                return
+        }
+        ; Move each selected item down, preserving relative order
+        for _, idx in selectedItemRows {
+            temp := items[idx].Clone()
+            items[idx] := items[idx + 1].Clone()
+            items[idx + 1] := temp
+        }
         this.RefreshItemList(menuName)
-        this.ItemLV.Modify(selectedItemRow + 1, "Select Focus")
+        ; Reselect moved items
+        for _, idx in selectedItemRows {
+            this.ItemLV.Modify(idx + 1, "Select")
+        }
+        this.ItemLV.Modify(selectedItemRows[1] + 1, "Focus")
     }
+    
+    ; Allows user to move item to a different menu or create a new menu and move it to that. 
+    MoveItemMenu(*) {
+        selectedMenuRow := this.MenuLV.GetNext()
+        ; Get all selected item rows
+        selectedItemRows := []
+        row := 0
+        while (row := this.ItemLV.GetNext(row)) {
+            selectedItemRows.Push(row)
+        }
+        if (!selectedMenuRow || selectedItemRows.Length = 0) {
+            MsgBox("Please select a menu and at least one item to move.")
+            return
+        }
+        currentMenuName := this.MenuLV.GetText(selectedMenuRow, 2)
+        ; Gather all selected items (in order, highest to lowest for safe removal)
+        itemsToMove := []
+        for idx in selectedItemRows {
+            itemsToMove.Push(this.CySe_Menus[currentMenuName]["Items"][idx])
+        }
+        ; Sort selectedItemRows descending so RemoveAt doesn't shift indices
+        ; Manual bubble sort (descending)
+        n := selectedItemRows.Length
+        loop n - 1 {
+            i := A_Index
+            loop n - i {
+                j := A_Index
+                if (selectedItemRows[j] < selectedItemRows[j+1]) {
+                    temp := selectedItemRows[j]
+                    selectedItemRows[j] := selectedItemRows[j+1]
+                    selectedItemRows[j+1] := temp
+                }
+            }
+        }
+        menuNames := []
+        for menuName, _ in this.CySe_Menus {
+            menuNames.Push(menuName)
+        }
+        moveMenuGui := Gui(, "Change Item's Menu")
+        moveMenuGui.Add("Text", "x20 y20", "Select a menu to move the item(s) to:")
+        menuDD := moveMenuGui.Add("DropDownList", "x20 y50 w180", menuNames)
+        menuDD.Choose(1)
+        moveBtn := moveMenuGui.Add("Button", "x20 y90 w80", "Move")
+        newMenuBtn := moveMenuGui.Add("Button", "x110 y90 w80", "New Menu...")
+        cancelBtn := moveMenuGui.Add("Button", "x200 y90 w70", "Cancel")
 
+        moveMenuGui.OnEvent("Close", MoveMenuGui_Close)
+        moveBtn.OnEvent("Click", MoveMenuGui_Move)
+        newMenuBtn.OnEvent("Click", MoveMenuGui_NewMenu)
+        cancelBtn.OnEvent("Click", MoveMenuGui_Cancel)
+        moveMenuGui.Show("w300 h200")
+
+        this_ := this ; for closure
+        ; Handler functions
+        MoveMenuGui_Close(*) {
+            moveMenuGui.Destroy()
+        }
+        MoveMenuGui_Move(*) {
+            targetMenuName := menuDD.Text
+            if (targetMenuName == currentMenuName) {
+                MsgBox("Item(s) already in the selected menu.")
+                return
+            }
+            ; Remove all selections from MenuLV
+            menuCount := this_.MenuLV.GetCount()
+            Loop menuCount {
+                this_.MenuLV.Modify(A_Index, "-Select -Focus")
+            }
+            ; Remove items from current menu (descending order)
+            for _, idx in selectedItemRows {
+                this_.CySe_Menus[currentMenuName]["Items"].RemoveAt(idx)
+            }
+            ; Add all items to target menu
+            for _, item in itemsToMove {
+                this_.CySe_Menus[targetMenuName]["Items"].Push(item)
+            }
+            moveMenuGui.Destroy()
+            this_.RefreshMenuList()
+            ; Set MenuLV selection to the new menu
+            menuCount := this_.MenuLV.GetCount()
+            foundRow := 0
+            Loop menuCount {
+                row := A_Index
+                if (this_.MenuLV.GetText(row, 2) == targetMenuName) {
+                    foundRow := row
+                    break
+                }
+            }
+            if (foundRow) {
+                this_.MenuLV.Modify(foundRow, "Select Focus")
+            }
+            this_.RefreshItemList(targetMenuName)
+        }
+        MoveMenuGui_NewMenu(*) {
+            result := InputBox("Enter the name for the new menu:", "New Menu")
+            if (result.Result != "OK" || !result.Value)
+                return
+            newMenuName := result.Value
+            if this_.CySe_Menus.Has(newMenuName) {
+                MsgBox("A menu with that name already exists!")
+                return
+            }
+            maxOrder := 0
+            for menuName, menuData in this_.CySe_Menus {
+                if (menuData["Order"] > maxOrder)
+                    maxOrder := menuData["Order"]
+            }
+            newOrder := maxOrder + 1
+            menuData := Map()
+            menuData["Order"] := newOrder
+            menuData["Items"] := []
+            ; Remove all selections from MenuLV
+            menuCount := this_.MenuLV.GetCount()
+            Loop menuCount {
+                this_.MenuLV.Modify(A_Index, "-Select -Focus")
+            }
+            ; Remove items from current menu (descending order)
+            for _, idx in selectedItemRows {
+                this_.CySe_Menus[currentMenuName]["Items"].RemoveAt(idx)
+            }
+            ; Add all items to new menu
+            for _, item in itemsToMove {
+                menuData["Items"].Push(item)
+            }
+            this_.CySe_Menus[newMenuName] := menuData
+            moveMenuGui.Destroy()
+            this_.RefreshMenuList()
+            ; Set MenuLV selection to the new menu
+            menuCount := this_.MenuLV.GetCount()
+            foundRow := 0
+            Loop menuCount {
+                row := A_Index
+                if (this_.MenuLV.GetText(row, 2) == newMenuName) {
+                    foundRow := row
+                    break
+                }
+            }
+            if (foundRow) {
+                this_.MenuLV.Modify(foundRow, "Select Focus")
+            }
+            this_.RefreshItemList(newMenuName)
+        }
+        MoveMenuGui_Cancel(*) {
+            moveMenuGui.Destroy()
+        }
+    }
+    
     RefreshItemList(menuName) {
         this.ItemLV.Delete()
         for index, item in this.CySe_Menus[menuName]["Items"] {
             this.ItemLV.Add(, index, item["Name"], item["Path"])
         }
     }
-
 
     SaveConfig(*) {
         ; make sure no blank hotkeys
@@ -479,6 +737,7 @@ class CycleSelector {
         IniWrite(this.SuspendKeyEdit.Value, this.CySe_ConfigPath, "Hotkeys", "SuspendKey")
         ; Save Settings
         IniWrite(this.ShowGuiCB.Value, this.CySe_ConfigPath, "Settings", "ShowConfigOnLaunch")
+        IniWrite(this.ShowConfirmationCB.Value, this.CySe_ConfigPath, "Settings", "ShowConfirmOnSave")
         ; Save Script Path
         IniWrite(this.CySe_ScriptPath, this.CySe_ConfigPath, "Script", "Path")
         ; Sort menus by order before saving
@@ -536,7 +795,8 @@ class CycleSelector {
         ; Create shortcuts for all full paths
         this.CreateAllShortcuts()
         this.MyGui.Destroy()
-        MsgBox("Configuration saved successfully!`n`nThe script will now run with the updated settings.", "Configuration Saved", "OK Icon")
+        if this.CySe_ShowConfirmOnSave
+            MsgBox("Configuration saved successfully!`n`nThe script will now run with the updated settings.", "Configuration Saved", "OK Icon")
         Run(this.CySe_ScriptPath)
     }
 
@@ -770,13 +1030,17 @@ LoadMenus() {
         if (type = "Leader") {
             keyDD := this.LeaderKeyDD
             editBox := this.LeaderKeyEdit
+            IniWrite(this.LeaderKeyEdit.Value, this.CySe_ConfigPath, "Hotkeys", "LeaderKey")
         } else if (type = "Cycle") {
             keyDD := this.CycleKeyDD
+            IniWrite(this.CycleKeyEdit.Value, this.CySe_ConfigPath, "Hotkeys", "CycleKey")
             editBox := this.CycleKeyEdit
         } else if (type = "Selector") {
+            IniWrite(this.SelectorKeyEdit.Value, this.CySe_ConfigPath, "Hotkeys", "SelectorKey")
             keyDD := this.SelectorKeyDD
             editBox := this.SelectorKeyEdit
         } else if (type = "Suspend") {
+            IniWrite(this.SuspendKeyEdit.Value, this.CySe_ConfigPath, "Hotkeys", "SuspendKey")
             keyDD := this.SuspendKeyDD
             editBox := this.SuspendKeyEdit
         }
@@ -785,7 +1049,6 @@ LoadMenus() {
             keyText := ""
         hotkeyStr := keyText
         editBox.Value := hotkeyStr
-        
         this.instructionMessage := "While pressing and holding " . this.LeaderKeyEdit.Value . 
         "`nPress " . this.CycleKeyEdit.Value . " to cycle through menus. (When you reach the last menu, pressing this again will return to the first menu)`nPress " . 
         this.SelectorKeyEdit.Value . " to move down the list in the current menu`nRelease " . 
