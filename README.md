@@ -20,11 +20,11 @@ A quick app/script launcher written in AHK v2
 This script lets you launch programs/scripts from a tool tip. 
 There are 3 hotkeys used that the user chooses
 - The Leader Key
-- - The key the script 'listens' for and that launches the selected program when released.
+  - The key the script 'listens' for and that launches the selected program when released.
 - The Cycle Key
-- - The key that cycles through different menus (set up in the initial configuration gui in the menu tab)
+  - The key that cycles through different menus (set up in the initial configuration gui in the menu tab)
 - The Selector Key
-- - The key that moves a pointer within a menu, when the leader key is released, whatever program is selected will launch.
+  - The key that moves a pointer within a menu, when the leader key is released, whatever program is selected will launch.
 
 Very simple config.ini file allows you to make settings changes without going through the settings GUI
 
@@ -44,13 +44,21 @@ This is based on the Tooltip mouse menu from the showcase in the docs, but becau
 
 UPDATE (08-15-2025)
 - ToolTipEx requires an alpha version of AHK
-- - Added a check to switch to the default tooltip if version is less than 2.1
+  - Added a check to switch to the default tooltip if version is less than 2.1
  
 UPDATE (08-16-2025)
 - Added Icons
 - Added a "settings" menu so user can show the configuration gui again if they uncheck the box
-- - this also demonstrates using ahk scripts in the scripts directory.
+  - this also demonstrates using ahk scripts in the scripts directory.
 - There was an issue with the suspend key not updating, now, the script will close the launcher if its running and delete the file before recreating it
 - Modified the generic "script.ahk" to a more descriptive file name.
+
+UPDATE (08-25-2025)
+- Added new features
+  - Moving/Removing menus/items can now handle multiple selections
+  - New button lets users move an item from one menu to another, or create a new menu to move it to
+  - Added a file menu to allow users to save their current configuration or load previous versions
+    - Makes user defined number of automatic backups
+    - User can restore the default config ini.
 
 <noscript><a href="https://liberapay.com/noredact/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a></noscript>
